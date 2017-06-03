@@ -4,42 +4,54 @@ import os
 import sys
 import asyncio
 import json
-
-
-
 import discord
 from discord import opus
-
 from apiclient.discovery import build
 from apiclient.errors import HttpError
 from oauth2client.tools import argparser
-
 import ydl
-#vars
 import os
 
+# global names
 basePath = os.path.dirname(os.path.realpath(__file__));
-player = None
+ytplayer = None
 voice = None
+songs = []
 currentSongId = 0
 
+# const
+ytdl_opts = {
+    'source_address': '0.0.0.0',
+    'format': 'bestaudio/best',
+    'extractaudio': True,
+    'audioformat': "mp3",
+    'outtmpl': '%(id)s',
+    'noplaylist': False,
+    'yesplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': True,
+    'quiet': True,
+    'no_warnings': True,
+    'outtmpl': "data/audio/cache/%(id)s",
+    'default_search': 'auto'
+    }
+
+#classes
 class Song:
     songCount = 0
     #song with title and location
-    def __init__(self, _name, _path):
+    def __init__(self, _name, _id, _yt):
         self.name = _name
-        self.path = _path
+        self.id = 'https://www.youtube.com/watch?v=' + _id
+        self.isYoutubeVideo = _yt
         Song.songCount += 1
     def __str__(self):
-        return 'Song : ' + self.name + ' - Loc : ' + self.path
-
+        return 'Song : ' + self.name + ' - Id : ' + self.id
 
 with open(basePath + '\conf.json') as data:
     config = json.load(data)
 
 yuna = config['invoker']
-
-
 
 YOUTUBEKEY = 'AIzaSyBn1ND49GaqA9JFOeaE0b6IZqDuKlZ_Gaw'
 DEVELOPER_KEY = "AIzaSyBn1ND49GaqA9JFOeaE0b6IZqDuKlZ_Gaw"
@@ -69,43 +81,42 @@ async def on_ready():
 async def on_message(message):
     if message.content.startswith(yuna):
         print('command - ', message.content[1:])
-        if message.content.startswith(yuna +'queue'):
-            await client.send_message(message.channel, 'Searching youtube video .. ')
-            videoId = ydl.ytSearch(message.content[-9:])
-            await client.send_message(message.channel, 'Buffering ..')
-            global currentSongId
-            ydl_opts = {
-                'format' : 'bestaudio/best',
-                'postprocessors': [{'key': 'FFmpegExtractAudio',
-                'preferredcodec' : 'mp3',
-                'preferredquality': '320',}],
-                'outtmpl': basePath + '/songs/song' + str(currentSongId) + '.%(ext)s'
-                                        }
-            with youtube_dl.YoutubeDL(ydl_opts) as yd:
-                url = 'https://www.youtube.com/watch?v=' + videoId
-                yd.download([url])
-                currentSongId+=1
-        elif message.content[1:] == 'quit':
-            exit()
+        if message.content.startswith(yuna + 'queue'):
+            videoId = ydl.ytSearch(message.content[6:])
+            global songs
+            songs.append(Song(message.content[6:], videoId, True))
+            print(songs[len(songs)-1])
         elif message.content[1:] == 'join':
             try:
                 global voice
+                global ytplayer
+                global currentSongId
+
                 voice = await client.join_voice_channel(message.author.voice_channel)
+                print("current song : " + str(currentSongId))
+                print("url : " + songs[currentSongId].id)
+                beforeArgs = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
+                #songs[currentSongId].id
+                ytplayer = await voice.create_ytdl_player(songs[currentSongId].id, ytdl_options = ytdl_opts, before_options = beforeArgs)
+                ytplayer.start()
             except:
+                print(ytplayer.error)
                 pass
-        elif message.content[1:] == 'start':
-            try:
-                global player
-                player = voice.create_ffmpeg_player(basePath + '\songs\song'+ str(currentSongId - 1) +'.mp3')
-                player.start()
-            except:
-                pass
-        elif message.content[1:] == 'ping':
-            await client.send_message(message.channel, 'pong')
         elif message.content[1:] == 'titsorgtfo':
             await voice.disconnect()
         elif message.content[1:] == 'stop':
-            player.pause()
+            ytplayer.pause()
+        elif message.content[1:] == 'viewQueue':
+            await client.send_message(message.channel, 'Current queue :')
+            for i in range(len(songs)):
+                await client.send_message(message.channel, str(i) +  ':' + str(songs[i]))
+        elif message.content[1:] == 'setCurrentTrack':
+            target = message.content[15:]
+            print(target)
+            if target > 0 and target < len(songs):
+                currentSongId = target
+        elif message.content[1:] == 'quit':
+            exit()
 
 #running
 client.run(config['token'])

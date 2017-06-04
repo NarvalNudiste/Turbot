@@ -46,6 +46,9 @@ ytdl_opts = {
 
 #classes
 class Song:
+    '''Tiny class to store a youtube video url, as well as it's name. 
+    video infos are pulled from youtube by the youtube-dl library.
+    '''
     songCount = 0
     #song with title and location
     def __init__(self, name, url):
@@ -235,4 +238,4 @@ async def on_message(message):
             songs = []
 
 #running
-client.run(config['token'])
+#client.run(config['token'])

@@ -1,0 +1,328 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>turbot &#8212; Turbot 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for turbot</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">.. module:: turbot</span>
+<span class="sd">   :platform: Windows, I guess</span>
+<span class="sd">   :synopsis: simple music bot for discord</span>
+
+<span class="sd">.. moduleauthor:: Narval Nudiste &lt;guillaume.noguera@gmail.com&gt;</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">unicode_literals</span>
+<span class="kn">import</span> <span class="nn">youtube_dl</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">discord</span>
+<span class="kn">from</span> <span class="nn">discord</span> <span class="k">import</span> <span class="n">opus</span>
+<span class="kn">from</span> <span class="nn">apiclient.discovery</span> <span class="k">import</span> <span class="n">build</span>
+<span class="kn">from</span> <span class="nn">apiclient.errors</span> <span class="k">import</span> <span class="n">HttpError</span>
+<span class="kn">from</span> <span class="nn">oauth2client.tools</span> <span class="k">import</span> <span class="n">argparser</span>
+<span class="kn">import</span> <span class="nn">ydl</span>
+<span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="c1"># global names</span>
+<span class="n">basePath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="n">__file__</span><span class="p">));</span>
+<span class="n">ytplayer</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="n">voice</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="n">songs</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">currentSongId</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">skipRequestB</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="c1"># const</span>
+<span class="n">ytdl_opts</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="s1">&#39;bestaudio/best&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;extractaudio&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">&#39;audioformat&#39;</span><span class="p">:</span> <span class="s2">&quot;mp3&quot;</span><span class="p">,</span>
+    <span class="s1">&#39;outtmpl&#39;</span><span class="p">:</span> <span class="s1">&#39;</span><span class="si">%(id)s</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;noplaylist&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">&#39;nocheckcertificate&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">&#39;ignoreerrors&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s1">&#39;quiet&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s1">&#39;no_warnings&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s1">&#39;default_search&#39;</span><span class="p">:</span> <span class="s1">&#39;auto&#39;</span>
+    <span class="p">}</span>
+
+<span class="c1">#classes</span>
+<div class="viewcode-block" id="Song"><a class="viewcode-back" href="../index.html#turbot.Song">[docs]</a><span class="k">class</span> <span class="nc">Song</span><span class="p">:</span>
+    <span class="sd">&#39;&#39;&#39;Tiny class to store a youtube video url, as well as it&#39;s name. </span>
+<span class="sd">    video infos are pulled from youtube by the youtube-dl library.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">songCount</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1">#song with title and location</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">url</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;https://www.youtube.com/watch?v=&#39;</span> <span class="o">+</span> <span class="n">url</span>
+        <span class="n">Song</span><span class="o">.</span><span class="n">songCount</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">infos</span> <span class="o">=</span> <span class="n">getVidInfo</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;info &gt;&gt; </span><span class="si">{self.infos[&#39;title&#39;]}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">duration</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">infos</span><span class="p">[</span><span class="s1">&#39;duration&#39;</span><span class="p">]</span>
+        <span class="n">seconds</span> <span class="o">=</span> <span class="n">duration</span> <span class="o">%</span> <span class="mi">60</span>
+        <span class="n">minutes</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">duration</span> <span class="o">/</span> <span class="mi">60</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">f</span><span class="s2">&quot;```</span><span class="si">{self.infos[&#39;title&#39;]}</span><span class="s2"> (</span><span class="si">{minutes}</span><span class="s2">:</span><span class="si">{seconds}</span><span class="s2">)``` </span><span class="se">\b</span><span class="s2"> </span><span class="si">{self.url}</span><span class="s2">&quot;</span></div>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">basePath</span> <span class="o">+</span> <span class="s1">&#39;\conf.json&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">data</span><span class="p">:</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+<span class="n">yuna</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;invoker&#39;</span><span class="p">]</span>
+
+<span class="n">YOUTUBEKEY</span> <span class="o">=</span> <span class="s1">&#39;AIzaSyBn1ND49GaqA9JFOeaE0b6IZqDuKlZ_Gaw&#39;</span>
+<span class="n">DEVELOPER_KEY</span> <span class="o">=</span> <span class="s2">&quot;AIzaSyBn1ND49GaqA9JFOeaE0b6IZqDuKlZ_Gaw&quot;</span>
+<span class="n">YOUTUBE_API_SERVICE_NAME</span> <span class="o">=</span> <span class="s2">&quot;youtube&quot;</span>
+<span class="n">YOUTUBE_API_VERSION</span> <span class="o">=</span> <span class="s2">&quot;v3&quot;</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">discord</span><span class="o">.</span><span class="n">Client</span><span class="p">()</span>
+
+<span class="c1">#onstart</span>
+<span class="nd">@client</span><span class="o">.</span><span class="n">event</span>
+<div class="viewcode-block" id="on_ready"><a class="viewcode-back" href="../index.html#turbot.on_ready">[docs]</a><span class="k">async</span> <span class="k">def</span> <span class="nf">on_ready</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Pretty self-explanatory: prints turbot ID and loads the opus module</span>
+
+<span class="sd">    :returns: nothing</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;------&#39;</span><span class="p">)</span>
+    <span class="c1">#if sys.maxsize &gt; 2**32:</span>
+    <span class="n">opus</span><span class="o">.</span><span class="n">load_opus</span><span class="p">(</span><span class="s1">&#39;libopus-0.x64.dll&#39;</span><span class="p">)</span>
+    <span class="c1">#else:</span>
+        <span class="c1">#opus.load_opus(&#39;libopus-0.x86.dll&#39;)</span>
+    <span class="k">if</span>  <span class="n">discord</span><span class="o">.</span><span class="n">opus</span><span class="o">.</span><span class="n">is_loaded</span><span class="p">():</span>
+       <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Opus module loaded&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+       <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Error : opus module couldn&#39;t be loaded&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;------&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="pause"><a class="viewcode-back" href="../index.html#turbot.pause">[docs]</a><span class="k">async</span> <span class="k">def</span> <span class="nf">pause</span><span class="p">(</span><span class="n">player</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Pauses the current song</span>
+<span class="sd">    :param player: the ytdl_player currently playing</span>
+<span class="sd">    :type player: ytdl player from discord wrapper</span>
+<span class="sd">    :returns: nothing</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">player</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
+        <span class="n">player</span><span class="o">.</span><span class="n">pause</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="resume"><a class="viewcode-back" href="../index.html#turbot.resume">[docs]</a><span class="k">async</span> <span class="k">def</span> <span class="nf">resume</span><span class="p">(</span><span class="n">player</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Resumes the current song</span>
+
+<span class="sd">    :param player: the ytdl_player currently playing</span>
+<span class="sd">    :type player: ytdl player from discord wrapper</span>
+<span class="sd">    :returns: nothing</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">player</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
+        <span class="n">player</span><span class="o">.</span><span class="n">resume</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="skip_request"><a class="viewcode-back" href="../index.html#turbot.skip_request">[docs]</a><span class="k">def</span> <span class="nf">skip_request</span><span class="p">(</span><span class="n">skipRequested</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Utility func that should help to skip the current songs but actually does retard stuff and get called two times</span>
+
+<span class="sd">    :param skipRequested: the flag used to skip stuff</span>
+<span class="sd">    :type skipRequested: bool</span>
+<span class="sd">    :returns: bool</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">skipRequested</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">skipRequested</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+<div class="viewcode-block" id="getVidInfo"><a class="viewcode-back" href="../index.html#turbot.getVidInfo">[docs]</a><span class="k">def</span> <span class="nf">getVidInfo</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;func used to get youtube information; uses youtube_dl library</span>
+
+<span class="sd">    :param url: the video url</span>
+<span class="sd">    :type url: string</span>
+<span class="sd">    :returns: the infos</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">yt</span> <span class="o">=</span> <span class="n">youtube_dl</span><span class="o">.</span><span class="n">YoutubeDL</span><span class="p">(</span><span class="n">ytdl_opts</span><span class="p">)</span>
+    <span class="n">infos</span> <span class="o">=</span> <span class="n">yt</span><span class="o">.</span><span class="n">extract_info</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">download</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">process</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">infos</span></div>
+
+<div class="viewcode-block" id="printHelp"><a class="viewcode-back" href="../index.html#turbot.printHelp">[docs]</a><span class="k">async</span> <span class="k">def</span> <span class="nf">printHelp</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;func used to print the help menu</span>
+
+<span class="sd">    :param client: this bot</span>
+<span class="sd">    :type client: discord.Client</span>
+<span class="sd">    :param message: the message that just got posted in this sweet discord chan</span>
+<span class="sd">    :type message: discord.Message</span>
+<span class="sd">    :returns: nothing</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">f</span><span class="s2">&quot;&quot;&quot;```############################################################################# </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    # Welcome to the 1.0 turbot version</span>
+<span class="s2">    # commands :</span>
+<span class="s2">    # </span><span class="si">{yuna}</span><span class="s2">queue *args* : queues a song to be played next (first youtube result) </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    # </span><span class="si">{yuna}</span><span class="s2">join : asks the bot to join the current vocal channel </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    # </span><span class="si">{yuna}</span><span class="s2">start : start to play the queue </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    # </span><span class="si">{yuna}</span><span class="s2">stop : stop playback process </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    # </span><span class="si">{yuna}</span><span class="s2">pause : pauses the playback process (wow) </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    # </span><span class="si">{yuna}</span><span class="s2">resume : resumes the playback process (much wow) </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    # </span><span class="si">{yuna}</span><span class="s2">viewqueue : display the current queue </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    # </span><span class="si">{yuna}</span><span class="s2">quit : kills the bot </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    # </span><span class="si">{yuna}</span><span class="s2">skip : skips the song, still broken tho </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    # </span><span class="si">{yuna}</span><span class="s2">gtfo : asks the bot to kindly leaves the channel </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    # </span><span class="si">{yuna}</span><span class="s2">emptyqueue : erases the current queue </span><span class="se">\b</span><span class="s2"></span>
+<span class="s2">    #############################################################################````&quot;&quot;&quot;</span>
+    <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">channel</span><span class="p">,</span> <span class="n">m</span><span class="p">)</span></div>
+
+<span class="c1">#defining commands</span>
+<span class="nd">@client</span><span class="o">.</span><span class="n">event</span>
+<div class="viewcode-block" id="on_message"><a class="viewcode-back" href="../index.html#turbot.on_message">[docs]</a><span class="k">async</span> <span class="k">def</span> <span class="nf">on_message</span><span class="p">(</span><span class="n">message</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;func used to process bot requests</span>
+
+<span class="sd">    :param message: the message that just got posted in this sweet discord chan</span>
+<span class="sd">    :type message: discord.Message</span>
+<span class="sd">    :returns: nothing</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">content</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">yuna</span><span class="p">):</span>
+        <span class="n">command</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;command received : &quot;</span> <span class="o">+</span> <span class="n">command</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">content</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">yuna</span> <span class="o">+</span> <span class="s1">&#39;queue&#39;</span><span class="p">):</span>
+            <span class="c1">#parses the request to find a video link, then add a song object with the url in it</span>
+            <span class="n">videoUrl</span> <span class="o">=</span> <span class="n">ydl</span><span class="o">.</span><span class="n">ytSearch</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">6</span><span class="p">:])</span>
+            <span class="k">global</span> <span class="n">songs</span>
+            <span class="k">if</span> <span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="mi">10000</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="c1">#most needed feature</span>
+                <span class="n">songs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Song</span><span class="p">(</span><span class="s1">&#39;[T]//&#39;</span><span class="p">,</span><span class="s1">&#39;oHg5SJYRHA0&#39;</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">songs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Song</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">6</span><span class="p">:],</span> <span class="n">videoUrl</span><span class="p">))</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">songs</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">songs</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;join&#39;</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">global</span> <span class="n">voice</span>
+                <span class="k">global</span> <span class="n">ytplayer</span>
+                <span class="k">global</span> <span class="n">currentSongId</span>
+                <span class="n">voice</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">join_voice_channel</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">voice_channel</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">ytplayer</span><span class="o">.</span><span class="n">error</span><span class="p">)</span>
+                <span class="k">pass</span>
+        <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;start&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">voice</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">voice</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">join_voice_channel</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">voice_channel</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">songs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">channel</span><span class="p">,</span> <span class="s2">&quot;```Error : ensure to queue something up before asking me to do stuff```&quot;</span><span class="p">)</span>
+            <span class="k">while</span> <span class="n">songs</span><span class="p">:</span>
+                <span class="n">currentSong</span> <span class="o">=</span> <span class="n">songs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">beforeArgs</span> <span class="o">=</span> <span class="s2">&quot;-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5&quot;</span>
+                <span class="n">ytplayer</span> <span class="o">=</span> <span class="k">await</span> <span class="n">voice</span><span class="o">.</span><span class="n">create_ytdl_player</span><span class="p">(</span><span class="n">currentSong</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="n">ytdl_options</span> <span class="o">=</span> <span class="n">ytdl_opts</span><span class="p">,</span> <span class="n">before_options</span> <span class="o">=</span> <span class="n">beforeArgs</span><span class="p">)</span>
+                <span class="n">ytplayer</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+                <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">channel</span><span class="p">,</span> <span class="n">f</span><span class="s2">&quot;```Currently playing : ```{str(currentSong)}&quot;</span><span class="p">)</span>
+                <span class="k">while</span> <span class="ow">not</span> <span class="n">ytplayer</span><span class="o">.</span><span class="n">is_done</span><span class="p">():</span>
+                    <span class="k">global</span> <span class="n">skipRequestB</span>
+                    <span class="k">if</span> <span class="n">skip_request</span><span class="p">(</span><span class="n">skipRequestB</span><span class="p">):</span>
+                        <span class="n">ytplayer</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+                        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;skip&#39;</span><span class="p">:</span>
+            <span class="n">skipRequestB</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;pause&#39;</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">pause</span><span class="p">(</span><span class="n">ytplayer</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;resume&#39;</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">resume</span><span class="p">(</span><span class="n">ytplayer</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;gtfo&#39;</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">voice</span><span class="o">.</span><span class="n">disconnect</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;stop&#39;</span><span class="p">:</span>
+            <span class="n">ytplayer</span><span class="o">.</span><span class="n">pause</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;viewqueue&#39;</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">f</span><span class="s1">&#39;```Current queue : ({len(songs)} songs </span><span class="se">\b</span><span class="s1">)&#39;</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">songs</span><span class="p">)):</span>
+                <span class="n">m</span> <span class="o">+=</span> <span class="p">(</span><span class="n">f</span><span class="s2">&quot;</span><span class="si">{i}</span><span class="s2">: </span><span class="si">{songs[i].infos[&#39;title&#39;]}</span><span class="s2"> </span><span class="se">\b</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">m</span> <span class="o">+=</span> <span class="p">(</span><span class="s1">&#39;```&#39;</span><span class="p">)</span>
+            <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">channel</span><span class="p">,</span> <span class="n">m</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;quit&#39;</span><span class="p">:</span>
+            <span class="n">exit</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;help&#39;</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">printHelp</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;emptyqueue&#39;</span><span class="p">:</span>
+            <span class="n">songs</span> <span class="o">=</span> <span class="p">[]</span></div>
+
+<span class="c1">#running</span>
+<span class="c1">#client.run(config[&#39;token&#39;])</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Guillaume Noguera.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
